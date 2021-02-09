@@ -8,11 +8,22 @@ import requests
 from eShop_Prices import eShop_Prices
 
 class InteractionManager:
-    def __init__(self, chat_id: int, bot: TelegramBot):
+    def __init__(self, chat_id: int, bot: TelegramBot, currency: str = ''):
         self.chat_id = chat_id
         self.bot = bot
 
-        self.eShop_scraper = eShop_Prices()
+        self.eShop_scraper = eShop_Prices(currency=currency)
+
+    @staticmethod
+    def load(bot: TelegramBot, dump: str) -> InteractionManager:
+        dump = dump.split(',')
+        im = InteractionManager(int(dump[0]), bot)
+        im.eShop_scraper.currency = dump[1].strip()
+
+        return im
+
+    def dump(self):
+        return f'{self.chat_id},{self.eShop_scraper.currency}'
 
     def _build_prices_message(self, game_title: str, prices: [{str: str}]):
         message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
@@ -126,8 +137,9 @@ class TelegramBot:
         self.ongoing_interactions = {}
         try:
             with open('ongoing_interactions') as oi_file:
-                for chat_id in oi_file:
-                    self.ongoing_interactions[int(chat_id)] = InteractionManager(int(chat_id), self)
+                for interaction_manager_dump in oi_file:
+                    chat_id = int(interaction_manager_dump.split(',')[0])
+                    self.ongoing_interactions[chat_id] = InteractionManager.load(self, interaction_manager_dump)
         except FileNotFoundError:
             pass
 
@@ -215,7 +227,7 @@ class TelegramBot:
         
         with open('ongoing_interactions', 'w') as oi_file:
             for chat_id in self.ongoing_interactions:
-                oi_file.write(f'{chat_id}')
+                oi_file.write(f'{self.ongoing_interactions[chat_id].dump()}\n')
 
 if __name__ == '__main__':
     with open('token') as token_file:
