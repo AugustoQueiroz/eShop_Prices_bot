@@ -16,6 +16,12 @@ class eShop_Prices:
             return list(country_column.strings)[3].strip()
         except IndexError:
             return list(country_column.strings)[0].strip()
+    
+    def __parse_price_column(self, price_column: bs4.element.Tag) -> str:
+        try:
+            return list(price_column.strings)[3].strip()
+        except IndexError:
+            return list(price_column.strings)[0].strip()
 
     def get_prices_from_url(self, game_url: str) -> [{str: str}]:
         request_url = self.base_url + game_url + f'?currency={self.currency}'
@@ -40,10 +46,12 @@ class eShop_Prices:
                     prices.append(
                         {
                             'country': self.__parse_country_column(columns[1]),
-                            'price': columns[3].string.strip()
+                            'price': self.__parse_price_column(columns[3])
                         }
                     )
                 except IndexError:
+                    print(row)
+                except AttributeError:
                     print(row)
 
             return prices
