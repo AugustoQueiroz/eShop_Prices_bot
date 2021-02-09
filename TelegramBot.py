@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import json
 import urllib
@@ -5,16 +7,14 @@ import requests
 
 from eShop_Prices import eShop_Prices
 
-eShop = eShop_Prices()
-
 class InteractionManager:
-    def __init__(self, chat_id, bot):
+    def __init__(self, chat_id: int, bot: TelegramBot):
         self.chat_id = chat_id
         self.bot = bot
 
-        self.is_finished = True
+        self.eShop_scraper = eShop_Prices()
 
-    def _build_prices_message(self, game_title, prices):
+    def _build_prices_message(self, game_title: str, prices: [{str: str}]):
         message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
         for price in prices:
             message_body += f'\n<strong>{price["country"]}:</strong>\t\t{price["price"]}'
@@ -25,7 +25,15 @@ class InteractionManager:
         text = message['text']
 
         if re.match('/start', text):
-            self.bot.send_message(self.chat_id, 'Hi there, you can use this bot to quickly and easily get some info about game pricing on the Nintendo eShops around the world\\.\n\nUse /prices followed by name of the game you want to search \\(ex\\.: `/prices The Legend of Zelda`\\) to get a list of the prices in each store\\.')
+            self.bot.send_message(
+                self.chat_id,
+                '''
+                Hi there, you can use this bot to quickly and easily get some info about game pricing on the Nintendo eShops around the world\\.
+                
+                \nUse /prices followed by name of the game you want to search \\(ex\\.: `/prices The Legend of Zelda`\\) to get a list of the prices in each store\\.
+                \nUse /currency followed by a currency code \\(ex\\.: `/currency BRL`\\) to get the prices converted to that currency on your next requests\\.
+                '''
+                )
 
         elif re.match('/search', text):
             m = re.search('(?<=/search ).*', text)
@@ -42,6 +50,12 @@ class InteractionManager:
                 self.get_prices_from_query(m.group(0))
             else:
                 self.bot.send_message(self.chat_id, 'You must give a game name to search \\(ex\\.: `/prices The Legend of Zelda`\\)')
+        
+        elif re.match('/currency', text):
+            m = re.search('(?<=/currency ).*', text)
+            if m is not None:
+                self.eShop_scraper.currency = m.group(0)
+                self.bot.send_message(self.chat_id, f'Currency set to {m.group(0)}')
 
     def handle_callback(self, callback):
         original_message = callback['message']
@@ -50,9 +64,9 @@ class InteractionManager:
         if re.search('/prices', data):
             chosen_option = int(re.search('(?<=/prices ).*', data).group(0))
             game_title = original_message['reply_markup']['inline_keyboard'][chosen_option][0]['text']
-            search_results = eShop.search(game_title)
+            search_results = self.eShop_scraper.search(game_title)
             game_title = list(search_results.keys())[0]
-            prices = eShop.get_prices_from_url(search_results[game_title])
+            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title])
 
             self.bot.update_message(
                 self.chat_id,
@@ -60,11 +74,9 @@ class InteractionManager:
                 self._build_prices_message(game_title, prices),
                 parse_mode='HTML'
             )
-        
-        self.is_finished = True
 
-    def search(self, query):
-        results = eShop.search(query)
+    def search(self, query: str):
+        results = self.eShop_scraper.search(query)
 
         response_body = f'Search results for _{query}_:'
         for result in results:
@@ -72,8 +84,8 @@ class InteractionManager:
         
         self.bot.send_message(self.chat_id, response_body)
     
-    def get_prices_from_query(self, query):
-        search_results = eShop.search(query)
+    def get_prices_from_query(self, query: str):
+        search_results = self.eShop_scraper.search(query)
 
         if len(search_results.keys()) == 0:
             self.bot.send_message(
@@ -82,7 +94,7 @@ class InteractionManager:
             )
         elif len(search_results.keys()) == 1:
             game_title = list(search_results.keys())[0]
-            prices = eShop.get_prices_from_url(search_results[game_title])
+            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title])
             
             self.bot.send_message(
                 self.chat_id,
@@ -107,10 +119,8 @@ class InteractionManager:
                 reply_markup=urllib.parse.quote(json.dumps(reply_markup), safe='')
             )
 
-            self.is_finished = False
-
 class TelegramBot:
-    def __init__(self, token):
+    def __init__(self, token: str):
         self.base_url = f'https://api.telegram.org/bot{token}'
 
         self.ongoing_interactions = {}
@@ -127,7 +137,7 @@ class TelegramBot:
         except FileNotFoundError:
             self.last_processed_update_id = None
 
-    def __get_updates(self, timeout=100, last_processed_update_id=None):
+    def __get_updates(self, timeout:int=100, last_processed_update_id:int=None):
         request_url = f'{self.base_url}/getUpdates?timeout={timeout}'
         if last_processed_update_id is not None:
             request_url += f'&offset={last_processed_update_id + 1}'
@@ -140,7 +150,7 @@ class TelegramBot:
         else:
             print("Error")
 
-    def send_message(self, chat_id, message_body, parse_mode='MarkdownV2', reply_markup=None):
+    def send_message(self, chat_id: int, message_body: str, parse_mode: str='MarkdownV2', reply_markup=None):
         escaped_message_body = urllib.parse.quote(message_body)
         request_url = f'{self.base_url}/sendMessage?chat_id={chat_id}&text={escaped_message_body}&parse_mode={parse_mode}'
         if reply_markup is not None:
@@ -151,7 +161,7 @@ class TelegramBot:
         if response.status_code != 200:
             print('Error sending message')
 
-    def update_message(self, chat_id, message_id, message_body, parse_mode='MarkdownV2', reply_markup=None):
+    def update_message(self, chat_id: int, message_id: int, message_body: str, parse_mode: str='MarkdownV2', reply_markup=None):
         escaped_message_body = urllib.parse.quote(message_body)
         request_url = f'{self.base_url}/editMessageText?chat_id={chat_id}&message_id={message_id}&text={escaped_message_body}&parse_mode={parse_mode}'
         if reply_markup is not None:
@@ -162,7 +172,7 @@ class TelegramBot:
         if response.status_code != 200:
             print('Error updating message')
 
-    def send_action(self, chat_id, action):
+    def send_action(self, chat_id: int, action: str):
         request_url = f'{self.base_url}/sendChatAction?chat_id={chat_id}&action={action}'
         response = requests.get(request_url)
 
@@ -178,7 +188,7 @@ class TelegramBot:
 
                         chat_id = message['chat']['id']
 
-                        if chat_id not in self.ongoing_interactions or self.ongoing_interactions[chat_id].is_finished:
+                        if chat_id not in self.ongoing_interactions:
                             self.ongoing_interactions[chat_id] = InteractionManager(chat_id, self)
                         
                         self.ongoing_interactions[chat_id].handle_message(message)
@@ -186,7 +196,7 @@ class TelegramBot:
                     elif 'callback_query' in update.keys():
                         chat_id = update['callback_query']['message']['chat']['id']
 
-                        if chat_id not in self.ongoing_interactions or self.ongoing_interactions[chat_id].is_finished:
+                        if chat_id not in self.ongoing_interactions:
                             self.ongoing_interactions[chat_id] = InteractionManager(chat_id, self)
                         
                         self.ongoing_interactions[chat_id].handle_callback(update['callback_query'])
