@@ -12,8 +12,14 @@ class InteractionManager:
         self.chat_id = chat_id
         self.bot = bot
 
-    def is_finished(self):
-        return True
+        self.is_finished = True
+
+    def _build_prices_message(self, game_title, prices):
+        message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
+        for price in prices:
+            message_body += f'\n<strong>{price["country"]}:</strong>\t\t{price["price"]}'
+        
+        return message_body
 
     def handle_message(self, message):
         text = message['text']
@@ -35,8 +41,25 @@ class InteractionManager:
                 self.bot.send_message(self.chat_id, 'You must give a game name to search \\(ex\\.: `/prices The Legend of Zelda`\\)')
 
     def handle_callback(self, callback):
-        pass
-    
+        original_message = callback['message']
+        data = callback['data']
+
+        if re.search('/prices', data):
+            chosen_option = int(re.search('(?<=/prices ).*', data).group(0))
+            game_title = original_message['reply_markup']['inline_keyboard'][chosen_option][0]['text']
+            search_results = eShop.search(game_title)
+            game_title = list(search_results.keys())[0]
+            prices = eShop.get_prices_from_url(search_results[game_title])
+
+            self.bot.update_message(
+                self.chat_id,
+                original_message['message_id'],
+                self._build_prices_message(game_title, prices),
+                parse_mode='HTML'
+            )
+        
+        self.is_finished = True
+
     def search(self, query):
         results = eShop.search(query)
 
@@ -57,14 +80,10 @@ class InteractionManager:
         elif len(search_results.keys()) == 1:
             game_title = list(search_results.keys())[0]
             prices = eShop.get_prices_from_url(search_results[game_title])
-
-            message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
-            for price in prices:
-                message_body += f'\n<strong>{price["country"]}:</strong>\t\t{price["price"]}'
             
             self.bot.send_message(
                 self.chat_id,
-                message_body,
+                self._build_prices_message(game_title, prices),
                 parse_mode='HTML'
             )
         elif len(search_results.keys()) > 1:
@@ -85,11 +104,19 @@ class InteractionManager:
                 reply_markup=urllib.parse.quote(json.dumps(reply_markup), safe='')
             )
 
+            self.is_finished = False
+
 class TelegramBot:
     def __init__(self, token):
         self.base_url = f'https://api.telegram.org/bot{token}'
 
         self.ongoing_interactions = {}
+        try:
+            with open('ongoing_interactions') as oi_file:
+                for chat_id in oi_file:
+                    self.ongoing_interactions[int(chat_id)] = InteractionManager(int(chat_id), self)
+        except FileNotFoundError:
+            pass
 
         try:
             with open('last_processed_update_id') as lpui_file:
@@ -121,6 +148,17 @@ class TelegramBot:
         if response.status_code != 200:
             print('Error sending message')
 
+    def update_message(self, chat_id, message_id, message_body, parse_mode='MarkdownV2', reply_markup=None):
+        escaped_message_body = urllib.parse.quote(message_body)
+        request_url = f'{self.base_url}/editMessageText?chat_id={chat_id}&message_id={message_id}&text={escaped_message_body}&parse_mode={parse_mode}'
+        if reply_markup is not None:
+            request_url += f'&reply_markup={reply_markup}'
+        print(request_url)
+        response = requests.get(request_url)
+
+        if response.status_code != 200:
+            print('Error updating message')
+
     def send_action(self, chat_id, action):
         request_url = f'{self.base_url}/sendChatAction?chat_id={chat_id}&action={action}'
         response = requests.get(request_url)
@@ -137,13 +175,18 @@ class TelegramBot:
 
                         chat_id = message['chat']['id']
 
-                        if chat_id not in self.ongoing_interactions or self.ongoing_interactions[chat_id].is_finished():
+                        if chat_id not in self.ongoing_interactions or self.ongoing_interactions[chat_id].is_finished:
                             self.ongoing_interactions[chat_id] = InteractionManager(chat_id, self)
                         
                         self.ongoing_interactions[chat_id].handle_message(message)
 
                     elif 'callback_query' in update.keys():
-                        print(update)
+                        chat_id = update['callback_query']['message']['chat']['id']
+
+                        if chat_id not in self.ongoing_interactions or self.ongoing_interactions[chat_id].is_finished:
+                            self.ongoing_interactions[chat_id] = InteractionManager(chat_id, self)
+                        
+                        self.ongoing_interactions[chat_id].handle_callback(update['callback_query'])
 
                     else:
                         print('Skipping non user non new message')
@@ -156,6 +199,10 @@ class TelegramBot:
     def exit_gracefully(self):
         with open('last_processed_update_id', 'w') as lpui_file:
             lpui_file.write(f'{self.last_processed_update_id}')
+        
+        with open('ongoing_interactions', 'w') as oi_file:
+            for chat_id in self.ongoing_interactions:
+                oi_file.write(f'{chat_id}')
 
 if __name__ == '__main__':
     with open('token') as token_file:
