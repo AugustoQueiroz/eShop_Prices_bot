@@ -1,6 +1,11 @@
 import re
 import json
+import urllib
 import requests
+
+from eShop_Prices import eShop_Prices
+
+eShop = eShop_Prices()
 
 class InteractionManager:
     def __init__(self, chat_id, bot):
@@ -16,9 +21,19 @@ class InteractionManager:
         if re.match('/search', text):
             m = re.search('(?<=/search ).*', text)
             if m is not None:
-                self.bot.send_message(self.chat_id, f'You\'re trying to search for {m.group(0)}')
+                self.bot.send_action(self.chat_id, action='typing')
+                self.search(m.group(0))
             else:
-                self.bot.send_message(self.chat_id, 'You must give a game name to search (ex.: `/search The Legend of Zelda`)')
+                self.bot.send_message(self.chat_id, 'You must give a game name to search \\(ex\\.: `/search The Legend of Zelda`\\)')
+    
+    def search(self, query):
+        results = eShop.search(query)
+
+        response_body = f'Search results for _{query}_:'
+        for result in results:
+            response_body += f'\n{result}'
+        
+        self.bot.send_message(self.chat_id, response_body)
 
 class TelegramBot:
     def __init__(self, token):
@@ -46,12 +61,20 @@ class TelegramBot:
             print("Error")
 
     def send_message(self, chat_id, message_body, parse_mode='MarkdownV2'):
-        request_url = f'{self.base_url}/sendMessage?chat_id={chat_id}&text={message_body}&parse_mode={parse_mode}'
+        escaped_message_body = urllib.parse.quote(message_body)
+        request_url = f'{self.base_url}/sendMessage?chat_id={chat_id}&text={escaped_message_body}&parse_mode={parse_mode}'
         print(request_url)
         response = requests.get(request_url)
 
         if response.status_code != 200:
             print('Error sending message')
+
+    def send_action(self, chat_id, action):
+        request_url = f'{self.base_url}/sendChatAction?chat_id={chat_id}&action={action}'
+        response = requests.get(request_url)
+
+        if response.status_code != 200:
+            print('Error sending chat action')
 
     def run(self):
         try:
