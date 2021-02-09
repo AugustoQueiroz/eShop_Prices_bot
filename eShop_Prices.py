@@ -17,8 +17,9 @@ class eShop_Prices:
         except IndexError:
             return list(country_column.strings)[0].strip()
 
-    def __get_prices_from_url(self, game_url: str) -> [{str: str}]:
+    def get_prices_from_url(self, game_url: str) -> [{str: str}]:
         request_url = self.base_url + game_url + f'?currency={self.currency}'
+        print('Making request to ' + request_url)
 
         response = requests.get(
             request_url,
@@ -35,12 +36,15 @@ class eShop_Prices:
             prices = []
             for row in prices_table.tbody.find_all('tr'):
                 columns = row.find_all('td')
-                prices.append(
-                    {
-                        'country': self.__parse_country_column(columns[1]),
-                        'price': columns[3].string.strip()
-                    }
-                )
+                try:
+                    prices.append(
+                        {
+                            'country': self.__parse_country_column(columns[1]),
+                            'price': columns[3].string.strip()
+                        }
+                    )
+                except IndexError:
+                    print(row)
 
             return prices
         else:
@@ -50,7 +54,6 @@ class eShop_Prices:
         encoded_query = urllib.parse.quote(query, safe='')
 
         request_url = self.base_url + f'games?q={encoded_query}'
-        print(f'Making request {request_url}')
 
         response = requests.get(
             request_url,
@@ -81,7 +84,7 @@ class eShop_Prices:
         if len(search_results) == 0:
             pass
         elif len(search_results) == 1:
-            return self.__get_prices_from_url(list(search_results.values())[0])
+            return self.get_prices_from_url(list(search_results.values())[0])
         else:
             print('More than one game found from that query:')
             for i, game_title in enumerate(search_results.keys()):
@@ -89,7 +92,7 @@ class eShop_Prices:
             
             game_to_get = input('What game do you want the prices for (use the number) ? ')
 
-            return self.__get_prices_from_url(list(search_results.values())[int(game_to_get)])
+            return self.get_prices_from_url(list(search_results.values())[int(game_to_get)])
 
 if __name__ == '__main__':
     game_query = input('Game to Query ? ')
