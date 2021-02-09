@@ -24,7 +24,10 @@ class InteractionManager:
     def handle_message(self, message):
         text = message['text']
 
-        if re.match('/search', text):
+        if re.match('/start', text):
+            self.bot.send_message(self.chat_id, 'Hi there, you can use this bot to quickly and easily get some info about game pricing on the Nintendo eShops around the world\\.\n\nUse /prices followed by name of the game you want to search \\(ex\\.: `/prices The Legend of Zelda`\\) to get a list of the prices in each store\\.')
+
+        elif re.match('/search', text):
             m = re.search('(?<=/search ).*', text)
             if m is not None:
                 self.bot.send_action(self.chat_id, action='typing')
@@ -32,7 +35,7 @@ class InteractionManager:
             else:
                 self.bot.send_message(self.chat_id, 'You must give a game name to search \\(ex\\.: `/search The Legend of Zelda`\\)')
         
-        if re.match('/prices', text):
+        elif re.match('/prices', text):
             m = re.search('(?<=/prices ).*', text)
             if m is not None:
                 self.bot.send_action(self.chat_id, action='typing')
