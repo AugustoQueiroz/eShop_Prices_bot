@@ -68,6 +68,9 @@ class InteractionManager:
             if m is not None:
                 self.eShop_scraper.currency = m.group(0)
                 self.bot.send_message(self.chat_id, f'Currency set to {m.group(0)}')
+            else:
+                self.bot.send_action(self.chat_id, 'typing')
+                self.get_available_currencies()
         
         elif re.match('/topdiscounts', text):
             self.bot.send_action(self.chat_id, action='typing')
@@ -142,6 +145,21 @@ class InteractionManager:
         for entry in top_discounts:
             message_body += f'\n\n<strong>{entry} - </strong> {top_discounts[entry]["best_price"]}'
         message_body += f'\n\n<a href="https://eshop-prices.com/games/on-sale?sort_by=discount&direction=desc&currency={self.eShop_scraper.currency}">See the all discounted games</a>'
+        
+        self.bot.send_message(
+            self.chat_id,
+            message_body,
+            parse_mode='HTML'
+        )
+
+    def get_available_currencies(self):
+        available_currencies = self.eShop_scraper.get_available_currencies()
+
+        message_body = f'<u><strong>To set the currency use <code>/currency [currency_code]</code>, where <code>[currency_code]</code> is one of the following:</strong></u>'
+        for currency in available_currencies:
+            if currency == '':
+                continue
+            message_body += f'\n<strong>{currency}</strong> for {available_currencies[currency]}'
         
         self.bot.send_message(
             self.chat_id,

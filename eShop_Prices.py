@@ -142,8 +142,26 @@ class eShop_Prices:
             }
 
         return results
+    
+    def get_available_currencies(self) -> {str: str}:
+        response = requests.get(
+            self.base_url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:85.0) Gecko/20100101 Firefox/85.0'
+            }
+            )
+
+        soup = bs4.BeautifulSoup(response.text, 'html.parser')
+        currency_select = soup.find_all('select', {'name': 'language-select'})[0]
+        options = currency_select.find_all('option')
+
+        result = {}
+        for option in options:
+            result[option['value']] = option.string
+        
+        return result
 
 if __name__ == '__main__':
     game_query = input('Game to Query ? ')
 
-    print(eShop_Prices(currency='BRL').get_top_discounts())
+    print(eShop_Prices(currency='BRL').get_available_currencies())
