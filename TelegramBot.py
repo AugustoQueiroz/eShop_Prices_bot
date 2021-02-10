@@ -51,6 +51,7 @@ class InteractionManager:
                 \nUse /prices followed by name of the game you want to search \\(ex\\.: `/prices The Legend of Zelda`\\) to get a list of the prices in each store\\.
                 \nUse /topdiscounts to get a list of the 20 games with the highest discount currently\\.
                 \nUse /currency followed by a currency code \\(ex\\.: `/currency BRL`\\) to get the prices converted to that currency on your next requests\\.
+                \nUse /addfavorite to add a game to your list of favorites\\. When you use /price without a game name it will give you an option to choose from this list\\.
                 '''
                 )
 
@@ -68,7 +69,10 @@ class InteractionManager:
                 self.bot.send_action(self.chat_id, action='typing')
                 self.get_prices_from_query(m.group(0))
             else:
-                self.bot.send_message(self.chat_id, 'You must give a game name to search \\(ex\\.: `/prices The Legend of Zelda`\\)')
+                if len(self.favorites) > 0:
+                    self.get_prices_empty()
+                else:
+                    self.bot.send_message(self.chat_id, 'You must give a game name to search \\(ex\\.: `/prices The Legend of Zelda`\\)')
         
         elif re.match('/currency', text):
             m = re.search('(?<=/currency ).*', text)
@@ -182,8 +186,30 @@ class InteractionManager:
             self.bot.send_message(
                 self.chat_id,
                 f'More than one game matches _{query}_, which of the following would you like the prices for?\n_\\(Best available price in parenthesis\\)_',
-                reply_markup=urllib.parse.quote(json.dumps(reply_markup), safe='')
+                reply_markup=reply_markup
             )
+
+    def get_prices_empty(self):
+        message_body = '<strong><u>Do you want to see the prices for one of your favorited games?</u></strong>'
+        message_body += '\nTo get prices for a specific game use <code>/prices [game_name]</code>'
+
+        inline_buttons = []
+        for i, favorited_game in enumerate(self.favorites):
+            inline_buttons.append([{
+                'text': favorited_game,
+                'callback_data': f'/prices {i}'
+            }])
+        
+        reply_markup = {
+            'inline_keyboard': inline_buttons
+        }
+
+        self.bot.send_message(
+            self.chat_id,
+            message_body,
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
     
     def get_top_discounts(self):
         top_discounts = self.eShop_scraper.get_top_discounts()
@@ -285,7 +311,7 @@ class TelegramBot:
         escaped_message_body = urllib.parse.quote(message_body)
         request_url = f'{self.base_url}/sendMessage?chat_id={chat_id}&text={escaped_message_body}&parse_mode={parse_mode}'
         if reply_markup is not None:
-            request_url += f'&reply_markup={reply_markup}'
+            request_url += f'&reply_markup={urllib.parse.quote(json.dumps(reply_markup), safe="")}'
         response = requests.get(request_url)
 
         if response.status_code != 200:
@@ -295,7 +321,7 @@ class TelegramBot:
         escaped_message_body = urllib.parse.quote(message_body)
         request_url = f'{self.base_url}/editMessageText?chat_id={chat_id}&message_id={message_id}&text={escaped_message_body}&parse_mode={parse_mode}'
         if reply_markup is not None:
-            request_url += f'&reply_markup={reply_markup}'
+            request_url += f'&reply_markup={urllib.parse.quote(json.dumps(reply_markup), safe="")}'
         response = requests.get(request_url)
 
         if response.status_code != 200:
