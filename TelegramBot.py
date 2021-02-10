@@ -42,17 +42,22 @@ class InteractionManager:
     def handle_message(self, message):
         text = message['text']
 
-        if re.match('/start', text):
+        if re.match('/start', text) or re.match('/help', text):
             self.bot.send_message(
                 self.chat_id,
                 '''
-                Hi there, you can use this bot to quickly and easily get some info about game pricing on the Nintendo eShops around the world\\.
+                Hi there, you can use this bot to quickly and easily get some info about game pricing on the Nintendo eShops around the world.
                 
-                \nUse /prices followed by name of the game you want to search \\(ex\\.: `/prices The Legend of Zelda`\\) to get a list of the prices in each store\\.
-                \nUse /topdiscounts to get a list of the 20 games with the highest discount currently\\.
-                \nUse /currency followed by a currency code \\(ex\\.: `/currency BRL`\\) to get the prices converted to that currency on your next requests\\.
-                \nUse /addfavorite to add a game to your list of favorites\\. When you use /price without a game name it will give you an option to choose from this list\\.
-                '''
+                \nUse /prices followed by name of the game you want to search (ex.: <code>/prices The Legend of Zelda</code>) to get a list of the prices in each store.
+                \nUse /topdiscounts to get a list of the 20 games with the highest discount currently.
+                \nUse /currency followed by a currency code (ex.: <code>/currency BRL</code>) to get the prices converted to that currency on your next requests.
+                \nUse /addfavorite to add a game to your list of favorites. When you use /price without a game name it will give you an option to choose from this list.
+                \nUse /removefavorite to unfavorite a game. The list of your favorite games will be provided for you to choose from.
+                \nUse /myfavorites to see what games you have currently favorited.
+
+                \nAll prices are scraped from the <a href='https://eshop-prices.com'>eShop-Prices</a> website. Consider visiting it to support the creator, as well as for more info and some cool features.
+                ''',
+                parse_mode='HTML'
                 )
 
         elif re.match('/search', text):
@@ -105,6 +110,9 @@ class InteractionManager:
                 message_body,
                 parse_mode='HTML'
             )
+        
+        elif re.match('/removefavorite', text):
+            self.remove_favorite()
 
     def handle_callback(self, callback):
         original_message = callback['message']
@@ -142,6 +150,22 @@ class InteractionManager:
                 self.chat_id,
                 original_message['message_id'],
                 f'<em>{game_title}</em> added to your list of favorites.',
+                parse_mode='HTML'
+            )
+
+        elif re.match('/removefavorite', data):
+            chosen_option = int(re.search('(?<=/removefavorite ).*', data).group(0))
+            game_title = re.sub(
+                ' \(.*\)',
+                '',
+                original_message['reply_markup']['inline_keyboard'][chosen_option][0]['text']
+            )
+            self.favorites.remove(game_title)
+
+            self.bot.update_message(
+                self.chat_id,
+                original_message['message_id'],
+                f'<em>{game_title}</em> removed from your list of favorites.',
                 parse_mode='HTML'
             )
 
@@ -274,6 +298,27 @@ class InteractionManager:
                 f'More than one game matches _{query}_, which of the following would you like the prices for?\n_\\(Best available price in parenthesis\\)_',
                 reply_markup=urllib.parse.quote(json.dumps(reply_markup), safe='')
             )
+    
+    def remove_favorite(self):
+        message_body = '<strong><u>Which of the following do you want to remove from your favorites?</u></strong>'
+
+        inline_buttons = []
+        for i, favorited_game in enumerate(self.favorites):
+            inline_buttons.append([{
+                'text': favorited_game,
+                'callback_data': f'/removefavorite {i}'
+            }])
+        
+        reply_markup = {
+            'inline_keyboard': inline_buttons
+        }
+
+        self.bot.send_message(
+            self.chat_id,
+            message_body,
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
 
 class TelegramBot:
     def __init__(self, token: str):
