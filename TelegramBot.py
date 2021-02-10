@@ -42,7 +42,7 @@ class InteractionManager:
                 Hi there, you can use this bot to quickly and easily get some info about game pricing on the Nintendo eShops around the world\\.
                 
                 \nUse /prices followed by name of the game you want to search \\(ex\\.: `/prices The Legend of Zelda`\\) to get a list of the prices in each store\\.
-                \nUse /topDiscounts to get a list of the 20 games with the highest discount currently\\.
+                \nUse /topdiscounts to get a list of the 20 games with the highest discount currently\\.
                 \nUse /currency followed by a currency code \\(ex\\.: `/currency BRL`\\) to get the prices converted to that currency on your next requests\\.
                 '''
                 )
@@ -69,7 +69,7 @@ class InteractionManager:
                 self.eShop_scraper.currency = m.group(0)
                 self.bot.send_message(self.chat_id, f'Currency set to {m.group(0)}')
         
-        elif re.match('/topDiscounts', text):
+        elif re.match('/topdiscounts', text):
             self.bot.send_action(self.chat_id, action='typing')
             self.get_top_discounts()
 
