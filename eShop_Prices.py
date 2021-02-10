@@ -9,7 +9,20 @@ class eShop_Prices:
         self.currency = currency
 
     def __parse_games_list_item(self, games_list_item: bs4.element.Tag) -> (str, str):
-        return (games_list_item.find_all('h5')[0].string, games_list_item['href'])
+        game_title = games_list_item.find_all('h5')[0].string
+        game_url = games_list_item['href']
+        for i, s in enumerate(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings):
+            print(i, s)
+        try:
+            game_price = list(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings)[1]
+        except IndexError:
+            game_price = list(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings)[0]
+
+        return {
+            'game_title': game_title,
+            'game_uri': game_url,
+            'game_price': game_price
+        }
 
     def __parse_country_column(self, country_column: bs4.element.Tag) -> str:
         try:
@@ -61,7 +74,7 @@ class eShop_Prices:
     def search(self, query: str) -> {str: str}:
         encoded_query = urllib.parse.quote(query, safe='')
 
-        request_url = self.base_url + f'games?q={encoded_query}'
+        request_url = self.base_url + f'games?q={encoded_query}&currency={self.currency}'
 
         response = requests.get(
             request_url,
@@ -78,8 +91,11 @@ class eShop_Prices:
             results = {}
 
             for games_list_item in games_list:
-                game_name, game_url = self.__parse_games_list_item(games_list_item)
-                results[game_name] = game_url
+                game_list_item = self.__parse_games_list_item(games_list_item)
+                results[game_list_item['game_title']] = {
+                    'best_price': game_list_item['game_price'],
+                    'uri': game_list_item['game_uri']
+                }
 
             return results
         else:
@@ -100,7 +116,29 @@ class eShop_Prices:
             
             game_to_get = input('What game do you want the prices for (use the number) ? ')
 
-            return self.get_prices_from_url(list(search_results.values())[int(game_to_get)])
+            return self.get_prices_from_url(list(search_results.values())[int(game_to_get)]['uri'])
+
+    def get_top_discounts(self) -> [{str: str}]:
+        request_url = self.base_url + f'games/on-sale?direction=desc&sort_by=discount'
+
+        response = requests.get(
+            request_url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:85.0) Gecko/20100101 Firefox/85.0'
+            }
+            )
+
+        soup = bs4.BeautifulSoup(response.text, 'html.parser')
+
+        games_list = soup.find_all('a', {'class': 'games-list-item'})
+
+        results = {}
+
+        for games_list_item in games_list:
+            game_name, game_url = self.__parse_games_list_item(games_list_item)
+            results[game_name] = game_url
+
+        return results
 
 if __name__ == '__main__':
     game_query = input('Game to Query ? ')

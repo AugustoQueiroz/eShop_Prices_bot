@@ -77,7 +77,7 @@ class InteractionManager:
             game_title = original_message['reply_markup']['inline_keyboard'][chosen_option][0]['text']
             search_results = self.eShop_scraper.search(game_title)
             game_title = list(search_results.keys())[0]
-            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title])
+            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
 
             self.bot.update_message(
                 self.chat_id,
@@ -105,7 +105,7 @@ class InteractionManager:
             )
         elif len(search_results.keys()) == 1:
             game_title = list(search_results.keys())[0]
-            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title])
+            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
             
             self.bot.send_message(
                 self.chat_id,
@@ -116,7 +116,7 @@ class InteractionManager:
             inline_buttons = []
             for i, result in enumerate(search_results):
                 inline_buttons.append([{
-                    'text': result,
+                    'text': f'{result} ({search_results[result]["best_price"]})',
                     'callback_data': f'/prices {i}'
                 }])
 
@@ -126,7 +126,7 @@ class InteractionManager:
             
             self.bot.send_message(
                 self.chat_id,
-                f'More than one game matches _{query}_, which of the following would you like the prices for?',
+                f'More than one game matches _{query}_, which of the following would you like the prices for?\n_\\(Best available price in parenthesis\\)_',
                 reply_markup=urllib.parse.quote(json.dumps(reply_markup), safe='')
             )
 
