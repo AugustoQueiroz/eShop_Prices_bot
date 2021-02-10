@@ -9,3 +9,5 @@ A Telegram interface for [eshop-prices.com](eshop-prices.com)
 - [x] `/currency` : Change the currency the prices should be displayed in.
 - [ ] `/addfavorite` : Add a game to your favorites list and get a notification when it is on sale somewhere.
     - [ ] `/removefavorite`
+- [ ] `/forgetme` : Command to delete all stored information about a user (currency and favorites)
+- [ ] `/mydata` : Send the user all their stored information (currency and favorite games)
