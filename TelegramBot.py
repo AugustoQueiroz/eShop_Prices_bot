@@ -82,8 +82,13 @@ class InteractionManager:
 
         if re.search('/prices', data):
             chosen_option = int(re.search('(?<=/prices ).*', data).group(0))
-            game_title = original_message['reply_markup']['inline_keyboard'][chosen_option][0]['text']
+            game_title = re.sub(
+                ' \(.*\)',
+                '',
+                original_message['reply_markup']['inline_keyboard'][chosen_option][0]['text']
+            )
             search_results = self.eShop_scraper.search(game_title)
+            print(search_results)
             game_title = list(search_results.keys())[0]
             prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
 
@@ -204,7 +209,6 @@ class TelegramBot:
         request_url = f'{self.base_url}/sendMessage?chat_id={chat_id}&text={escaped_message_body}&parse_mode={parse_mode}'
         if reply_markup is not None:
             request_url += f'&reply_markup={reply_markup}'
-        print(request_url)
         response = requests.get(request_url)
 
         if response.status_code != 200:
@@ -215,7 +219,6 @@ class TelegramBot:
         request_url = f'{self.base_url}/editMessageText?chat_id={chat_id}&message_id={message_id}&text={escaped_message_body}&parse_mode={parse_mode}'
         if reply_markup is not None:
             request_url += f'&reply_markup={reply_markup}'
-        print(request_url)
         response = requests.get(request_url)
 
         if response.status_code != 200:

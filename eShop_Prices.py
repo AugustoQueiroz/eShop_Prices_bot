@@ -37,7 +37,7 @@ class eShop_Prices:
             return list(price_column.strings)[0].strip()
 
     def get_prices_from_url(self, game_url: str) -> [{str: str}]:
-        request_url = self.base_url + game_url + f'?currency={self.currency}'
+        request_url = self.base_url + game_url # + f'?currency={self.currency}'
         print('Making request to ' + request_url)
 
         response = requests.get(
