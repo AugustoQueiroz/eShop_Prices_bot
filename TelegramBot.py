@@ -14,16 +14,23 @@ class InteractionManager:
 
         self.eShop_scraper = eShop_Prices(currency=currency)
 
+        self.favorites = []
+
     @staticmethod
-    def load(bot: TelegramBot, dump: str) -> InteractionManager:
-        dump = dump.split(',')
-        im = InteractionManager(int(dump[0]), bot)
-        im.eShop_scraper.currency = dump[1].strip()
+    def load(bot: TelegramBot, dump) -> InteractionManager:
+        im = InteractionManager(dump['chat_id'], bot)
+        im.eShop_scraper.currency = dump['currency']
+        im.favorites = dump['favorites']
 
         return im
 
-    def dump(self):
-        return f'{self.chat_id},{self.eShop_scraper.currency}'
+    def json(self):
+        internal_state = {
+            'chat_id': self.chat_id,
+            'currency': self.eShop_scraper.currency,
+            'favorites': self.favorites
+        }
+        return internal_state
 
     def _build_prices_message(self, game_title: str, prices: [{str: str}]):
         message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
@@ -75,6 +82,25 @@ class InteractionManager:
         elif re.match('/topdiscounts', text):
             self.bot.send_action(self.chat_id, action='typing')
             self.get_top_discounts()
+        
+        elif re.match('/addfavorite', text):
+            m = re.search('(?<=/addfavorite ).*', text)
+            if m is not None:
+                self.bot.send_action(self.chat_id, action='typing')
+                self.add_favorite(m.group(0))
+            else:
+                self.bot.send_message(self.chat_id, 'You must give a game name to add as favorite \\(ex\\.: `/addfavorite The Legend of Zelda`\\)')
+        
+        elif re.match('/myfavorites', text):
+            self.bot.send_action(self.chat_id, action='typing')
+            message_body = '<strong><u>You have favorited the following games:</u></strong>\n'
+            for game_title in self.favorites:
+                message_body += f'\n{game_title}'
+            self.bot.send_message(
+                self.chat_id,
+                message_body,
+                parse_mode='HTML'
+            )
 
     def handle_callback(self, callback):
         original_message = callback['message']
@@ -96,6 +122,22 @@ class InteractionManager:
                 self.chat_id,
                 original_message['message_id'],
                 self._build_prices_message(game_title, prices),
+                parse_mode='HTML'
+            )
+        
+        elif re.match('/addfavorite', data):
+            chosen_option = int(re.search('(?<=/addfavorite ).*', data).group(0))
+            game_title = re.sub(
+                ' \(.*\)',
+                '',
+                original_message['reply_markup']['inline_keyboard'][chosen_option][0]['text']
+            )
+            self.favorites.append(game_title)
+
+            self.bot.update_message(
+                self.chat_id,
+                original_message['message_id'],
+                f'<em>{game_title}</em> added to your list of favorites.',
                 parse_mode='HTML'
             )
 
@@ -172,6 +214,41 @@ class InteractionManager:
             parse_mode='HTML'
         )
 
+    def add_favorite(self, query):
+        search_results = self.eShop_scraper.search(query)
+
+        if len(search_results.keys()) == 0:
+            self.bot.send_message(
+                self.chat_id,
+                f'No game matches the search query _{query}_\\.'
+            )
+        elif len(search_results.keys()) == 1:
+            game_title = list(search_results.keys())[0]
+            self.favorites.append(game_title)
+            
+            self.bot.send_message(
+                self.chat_id,
+                f'<em>{game_title}</em> added to your list of favorites.',
+                parse_mode='HTML'
+            )
+        elif len(search_results.keys()) > 1:
+            inline_buttons = []
+            for i, result in enumerate(search_results):
+                inline_buttons.append([{
+                    'text': f'{result} ({search_results[result]["best_price"]})',
+                    'callback_data': f'/addfavorite {i}'
+                }])
+
+            reply_markup = {
+                'inline_keyboard': inline_buttons
+            }
+            
+            self.bot.send_message(
+                self.chat_id,
+                f'More than one game matches _{query}_, which of the following would you like the prices for?\n_\\(Best available price in parenthesis\\)_',
+                reply_markup=urllib.parse.quote(json.dumps(reply_markup), safe='')
+            )
+
 class TelegramBot:
     def __init__(self, token: str):
         self.base_url = f'https://api.telegram.org/bot{token}'
@@ -179,9 +256,9 @@ class TelegramBot:
         self.ongoing_interactions = {}
         try:
             with open('ongoing_interactions') as oi_file:
-                for interaction_manager_dump in oi_file:
-                    chat_id = int(interaction_manager_dump.split(',')[0])
-                    self.ongoing_interactions[chat_id] = InteractionManager.load(self, interaction_manager_dump)
+                oi_json = json.load(oi_file)
+                for chat_id in oi_json:
+                    self.ongoing_interactions[int(chat_id)] = InteractionManager.load(self, oi_json[chat_id])
         except FileNotFoundError:
             pass
 
@@ -266,8 +343,11 @@ class TelegramBot:
             lpui_file.write(f'{self.last_processed_update_id}')
         
         with open('ongoing_interactions', 'w') as oi_file:
+            oi_json = {}
             for chat_id in self.ongoing_interactions:
-                oi_file.write(f'{self.ongoing_interactions[chat_id].dump()}\n')
+                oi_json[int(chat_id)] = self.ongoing_interactions[chat_id].json()
+            
+            json.dump(oi_json, oi_file)
 
 if __name__ == '__main__':
     with open('token') as token_file:
