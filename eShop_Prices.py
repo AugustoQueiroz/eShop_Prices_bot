@@ -14,9 +14,9 @@ class eShop_Prices:
         for i, s in enumerate(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings):
             print(i, s)
         try:
-            game_price = list(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings)[1]
+            game_price = list(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings)[2].strip()
         except IndexError:
-            game_price = list(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings)[0]
+            game_price = list(games_list_item.find_all('span', {'class': 'price-tag'})[0].strings)[0].strip()
 
         return {
             'game_title': game_title,
@@ -91,10 +91,10 @@ class eShop_Prices:
             results = {}
 
             for games_list_item in games_list:
-                game_list_item = self.__parse_games_list_item(games_list_item)
-                results[game_list_item['game_title']] = {
-                    'best_price': game_list_item['game_price'],
-                    'uri': game_list_item['game_uri']
+                games_list_item = self.__parse_games_list_item(games_list_item)
+                results[games_list_item['game_title']] = {
+                    'best_price': games_list_item['game_price'],
+                    'uri': games_list_item['game_uri']
                 }
 
             return results
@@ -119,7 +119,7 @@ class eShop_Prices:
             return self.get_prices_from_url(list(search_results.values())[int(game_to_get)]['uri'])
 
     def get_top_discounts(self) -> [{str: str}]:
-        request_url = self.base_url + f'games/on-sale?direction=desc&sort_by=discount'
+        request_url = self.base_url + f'games/on-sale?direction=desc&sort_by=discount&currency={self.currency}'
 
         response = requests.get(
             request_url,
@@ -135,12 +135,15 @@ class eShop_Prices:
         results = {}
 
         for games_list_item in games_list:
-            game_name, game_url = self.__parse_games_list_item(games_list_item)
-            results[game_name] = game_url
+            games_list_item = self.__parse_games_list_item(games_list_item)
+            results[games_list_item['game_title']] = {
+                'best_price': games_list_item['game_price'],
+                'uri': games_list_item['game_uri']
+            }
 
         return results
 
 if __name__ == '__main__':
     game_query = input('Game to Query ? ')
 
-    print(eShop_Prices().get_prices(game_query))
+    print(eShop_Prices(currency='BRL').get_top_discounts())

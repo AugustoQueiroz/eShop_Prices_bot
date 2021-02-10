@@ -28,7 +28,7 @@ class InteractionManager:
     def _build_prices_message(self, game_title: str, prices: [{str: str}]):
         message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
         for price in prices:
-            message_body += f'\n<strong>{price["country"]}:</strong>\t\t{price["price"]}'
+            message_body += f'\n<strong>{price["country"]} - </strong>\t\t{price["price"]}'
         
         return message_body
 
@@ -42,6 +42,7 @@ class InteractionManager:
                 Hi there, you can use this bot to quickly and easily get some info about game pricing on the Nintendo eShops around the world\\.
                 
                 \nUse /prices followed by name of the game you want to search \\(ex\\.: `/prices The Legend of Zelda`\\) to get a list of the prices in each store\\.
+                \nUse /topDiscounts to get a list of the 20 games with the highest discount currently\\.
                 \nUse /currency followed by a currency code \\(ex\\.: `/currency BRL`\\) to get the prices converted to that currency on your next requests\\.
                 '''
                 )
@@ -67,6 +68,10 @@ class InteractionManager:
             if m is not None:
                 self.eShop_scraper.currency = m.group(0)
                 self.bot.send_message(self.chat_id, f'Currency set to {m.group(0)}')
+        
+        elif re.match('/topDiscounts', text):
+            self.bot.send_action(self.chat_id, action='typing')
+            self.get_top_discounts()
 
     def handle_callback(self, callback):
         original_message = callback['message']
@@ -129,6 +134,20 @@ class InteractionManager:
                 f'More than one game matches _{query}_, which of the following would you like the prices for?\n_\\(Best available price in parenthesis\\)_',
                 reply_markup=urllib.parse.quote(json.dumps(reply_markup), safe='')
             )
+    
+    def get_top_discounts(self):
+        top_discounts = self.eShop_scraper.get_top_discounts()
+        
+        message_body = f'<strong><u>These are the 20 games with the greatest discount (ordered by discount %)</u></strong>'
+        for entry in top_discounts:
+            message_body += f'\n\n<strong>{entry} - </strong> {top_discounts[entry]["best_price"]}'
+        message_body += f'\n\n<a href="https://eshop-prices.com/games/on-sale?sort_by=discount&direction=desc&currency={self.eShop_scraper.currency}">See the all discounted games</a>'
+        
+        self.bot.send_message(
+            self.chat_id,
+            message_body,
+            parse_mode='HTML'
+        )
 
 class TelegramBot:
     def __init__(self, token: str):
