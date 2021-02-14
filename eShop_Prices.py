@@ -36,13 +36,15 @@ class eShop_Prices:
             discounted_price = list(price_column.div.strings)[2].strip()
             return {
                 'current_price': discounted_price,
-                'original_price': original_price
+                'original_price': original_price,
+                'discount': True
             }
         except AttributeError:
             original_price = price_column.string.strip()
             return {
                 'current_price': original_price,
-                'original_price': original_price
+                'original_price': original_price,
+                'discount': False
             }
     
     def __parse_prices_table_row(self, row):
