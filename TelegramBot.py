@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import json
 import urllib
+import schedule
 import requests
 
 from eShop_Prices import eShop_Prices
@@ -34,8 +35,8 @@ class InteractionManager:
 
     def _build_prices_message(self, game_title: str, prices: [{str: str}]):
         message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
-        for price in prices:
-            message_body += f'\n<strong>{price["country"]} - </strong>\t\t{price["price"]}'
+        for row in prices:
+            message_body += f'\n<strong>{row["country"]} - </strong>\t\t{row["price"]["current_price"]}'
         
         return message_body
 
@@ -177,6 +178,9 @@ class InteractionManager:
             response_body += f'\n{result}'
         
         self.bot.send_message(self.chat_id, response_body)
+
+    def check_promos(self):
+        print('Here :)')
     
     def get_prices_from_query(self, query: str):
         search_results = self.eShop_scraper.search(query)
@@ -379,10 +383,16 @@ class TelegramBot:
         if response.status_code != 200:
             print('Error sending chat action')
 
+    def check_promos(self):
+        for chat_id in self.ongoing_interactions:
+            self.ongoing_interactions[chat_id].check_promos()
+
     def run(self):
+        schedule.every(24).seconds.do(self.check_promos)
         try:
             while True:
-                for update in self.__get_updates(timeout=100, last_processed_update_id=self.last_processed_update_id):
+                schedule.run_pending()
+                for update in self.__get_updates(timeout=300, last_processed_update_id=self.last_processed_update_id):
                     if 'message' in update.keys():
                         message = update['message']
 

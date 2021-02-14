@@ -32,9 +32,34 @@ class eShop_Prices:
     
     def __parse_price_column(self, price_column: bs4.element.Tag) -> str:
         try:
-            return list(price_column.strings)[3].strip()
-        except IndexError:
-            return list(price_column.strings)[0].strip()
+            original_price = price_column.div.find('del').string.strip()
+            discounted_price = list(price_column.div.strings)[2].strip()
+            return {
+                'current_price': discounted_price,
+                'original_price': original_price
+            }
+        except AttributeError:
+            original_price = price_column.string.strip()
+            return {
+                'current_price': original_price,
+                'original_price': original_price
+            }
+    
+    def __parse_prices_table_row(self, row):
+        columns = row.find_all('td')
+
+        country = self.__parse_country_column(columns[1])
+        try:
+            meta = columns[2].span['title']
+        except TypeError:
+            meta = None
+        price = self.__parse_price_column(columns[3])
+
+        return {
+            'country': country,
+            'meta': meta,
+            'price': price
+        }
 
     def get_prices_from_url(self, game_url: str) -> [{str: str}]:
         request_url = self.base_url + game_url # + f'?currency={self.currency}'
@@ -54,18 +79,13 @@ class eShop_Prices:
 
             prices = []
             for row in prices_table.tbody.find_all('tr'):
-                columns = row.find_all('td')
+                #columns = row.find_all('td')
                 try:
                     prices.append(
-                        {
-                            'country': self.__parse_country_column(columns[1]),
-                            'price': self.__parse_price_column(columns[3])
-                        }
+                        self.__parse_prices_table_row(row)
                     )
-                except IndexError:
-                    print(row)
-                except AttributeError:
-                    print(row)
+                except IndexError as e:
+                    print(e, row)
 
             return prices
         else:
@@ -164,4 +184,4 @@ class eShop_Prices:
 if __name__ == '__main__':
     game_query = input('Game to Query ? ')
 
-    print(eShop_Prices(currency='BRL').get_available_currencies())
+    print(eShop_Prices(currency='BRL').get_prices_from_url('games/5334-super-mario-3d-world-bowser-s-fury'))
