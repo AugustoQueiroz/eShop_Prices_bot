@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import re
 import json
+import html
 import urllib
 import schedule
 import requests
+import datetime
 
 from eShop_Prices import eShop_Prices
 
@@ -129,7 +131,14 @@ class InteractionManager:
             search_results = self.eShop_scraper.search(game_title)
             print(search_results)
             game_title = list(search_results.keys())[0]
-            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
+            try:
+                prices = self.bot.prices_cache[game_title]['prices']
+            except KeyError:
+                prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
+                self.bot.prices_cache[game_title] = {
+                    'prices': prices,
+                    'date_added': datetime.datetime.now()
+                }
 
             self.bot.update_message(
                 self.chat_id,
@@ -180,7 +189,34 @@ class InteractionManager:
         self.bot.send_message(self.chat_id, response_body)
 
     def check_promos(self):
-        print('Here :)')
+        print('Checking for promos :)')
+        for favorite in self.favorites:
+            search_results = self.eShop_scraper.search(favorite)
+            game_title = list(search_results.keys())[0]
+            try:
+                prices = self.bot.prices_cache[game_title]['prices']
+            except KeyError:
+                prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
+                self.bot.prices_cache[game_title] = {
+                    'prices': prices,
+                    'date_added': datetime.datetime.now()
+                }
+
+            if prices[0]['price']['discount']:
+                try:
+                    if self.chat_id in self.bot.prices_cache[game_title]['informed_users']:
+                        print('User has already been informed about this promo!')
+                        continue
+                except KeyError: # 'informed_users' doesn't exist
+                    self.bot.prices_cache[game_title]['informed_users'] = []
+
+                self.bot.send_message(
+                    self.chat_id,
+                    f'<strong>{html.escape(favorite)} {prices[0]["meta"]} on eShop {prices[0]["country"]}.</strong>\n\n<a href=\'{self.eShop_scraper.base_url}{search_results[game_title]["uri"]}\'>Checkout worldwide pricing information.</a>',
+                    parse_mode='HTML'
+                    )
+                
+                self.bot.prices_cache[game_title]['informed_users'].append(self.chat_id)
     
     def get_prices_from_query(self, query: str):
         search_results = self.eShop_scraper.search(query)
@@ -192,7 +228,14 @@ class InteractionManager:
             )
         elif len(search_results.keys()) == 1:
             game_title = list(search_results.keys())[0]
-            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
+            try:
+                prices = self.bot.prices_cache[game_title]['prices']
+            except KeyError:
+                prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
+                self.bot.prices_cache[game_title] = {
+                    'prices': prices,
+                    'date_added': datetime.datetime.now()
+                }
             
             self.bot.send_message(
                 self.chat_id,
@@ -343,6 +386,15 @@ class TelegramBot:
         except FileNotFoundError:
             self.last_processed_update_id = None
 
+        try:
+            with open('prices_cache') as cache_file:
+                self.prices_cache = json.load(cache_file)
+            
+            for cached_game in self.prices_cache:
+                self.prices_cache[cached_game]['date_added'] = datetime.datetime.strptime(self.prices_cache[cached_game]['date_added'], '%Y-%m-%d %H:%M:%S.%f')
+        except FileNotFoundError:
+            self.prices_cache = {}
+
     def __get_updates(self, timeout:int=100, last_processed_update_id:int=None):
         request_url = f'{self.base_url}/getUpdates?timeout={timeout}'
         if last_processed_update_id is not None:
@@ -365,6 +417,7 @@ class TelegramBot:
 
         if response.status_code != 200:
             print('Error sending message')
+            print(json.loads(response.text)['description'])
 
     def update_message(self, chat_id: int, message_id: int, message_body: str, parse_mode: str='MarkdownV2', reply_markup=None):
         escaped_message_body = urllib.parse.quote(message_body)
@@ -387,8 +440,28 @@ class TelegramBot:
         for chat_id in self.ongoing_interactions:
             self.ongoing_interactions[chat_id].check_promos()
 
+    def cache_maintenance(self):
+        to_remove = []
+        
+        for cached_game in self.prices_cache:
+            cached_prices = self.prices_cache[cached_game]['prices']
+            if cached_prices[0]['price']['discount']:
+                sale_end_date = datetime.datetime.strptime(cached_prices[0]['meta'].replace('On sale until ', ''), '%b. %d, %Y')
+                if sale_end_date < datetime.datetime.now():
+                    print('Cached sale is over!')
+            else:
+                # Cached game isn't on sale
+                time_since_cached = datetime.datetime.now() - self.prices_cache[cached_game]['date_added']
+                if time_since_cached.hours > 12:
+                    to_remove.append(cached_game)
+                    print(cached_game, 'cached for more than 10 seconds, marked to remove')
+        
+        for cached_game in to_remove:
+            del self.prices_cache[cached_game]
+
     def run(self):
-        schedule.every(24).seconds.do(self.check_promos)
+        schedule.every(12).hours.do(self.check_promos)
+        schedule.every(12).hours.do(self.cache_maintenance)
         try:
             while True:
                 schedule.run_pending()
@@ -416,10 +489,12 @@ class TelegramBot:
                         continue
 
                     self.last_processed_update_id = update['update_id']
+                
+                self.dump_state()
         except KeyboardInterrupt:
             self.exit_gracefully()
-    
-    def exit_gracefully(self):
+
+    def dump_state(self):
         with open('last_processed_update_id', 'w') as lpui_file:
             lpui_file.write(f'{self.last_processed_update_id}')
         
@@ -429,6 +504,14 @@ class TelegramBot:
                 oi_json[int(chat_id)] = self.ongoing_interactions[chat_id].json()
             
             json.dump(oi_json, oi_file)
+
+        with open('prices_cache', 'w') as cache_file:
+            for cached_game in self.prices_cache:
+                self.prices_cache[cached_game]['date_added'] = str(self.prices_cache[cached_game]['date_added'])
+            json.dump(self.prices_cache, cache_file)
+    
+    def exit_gracefully(self):
+        self.dump_state()
 
 if __name__ == '__main__':
     with open('token') as token_file:
