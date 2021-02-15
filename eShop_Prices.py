@@ -1,6 +1,8 @@
 import bs4
 import urllib
 import requests
+import lxml
+import cchardet
 
 class eShop_Prices:
     def __init__(self, currency=''):
@@ -75,7 +77,7 @@ class eShop_Prices:
         )
 
         if response.status_code == 200:
-            soup = bs4.BeautifulSoup(response.text, 'html.parser')
+            soup = bs4.BeautifulSoup(response.text, 'lxml')
 
             prices_table = soup.find_all('table', {'class': 'prices-table'})[0]
 
@@ -106,7 +108,7 @@ class eShop_Prices:
             )
 
         if response.status_code == 200:
-            soup = bs4.BeautifulSoup(response.text, 'html.parser')
+            soup = bs4.BeautifulSoup(response.text, 'lxml')
 
             games_list = soup.find_all('a', {'class': 'games-list-item'})
 
@@ -150,7 +152,7 @@ class eShop_Prices:
             }
             )
 
-        soup = bs4.BeautifulSoup(response.text, 'html.parser')
+        soup = bs4.BeautifulSoup(response.text, 'lxml')
 
         games_list = soup.find_all('a', {'class': 'games-list-item'})
 
@@ -173,7 +175,7 @@ class eShop_Prices:
             }
             )
 
-        soup = bs4.BeautifulSoup(response.text, 'html.parser')
+        soup = bs4.BeautifulSoup(response.text, 'lxml')
         currency_select = soup.find_all('select', {'name': 'language-select'})[0]
         options = currency_select.find_all('option')
 
