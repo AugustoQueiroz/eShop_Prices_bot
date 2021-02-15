@@ -11,6 +11,6 @@ A Telegram interface for [eshop-prices.com](eshop-prices.com)
 - [x] `/addfavorite` : Add a game to your favorites list and get a notification when it is on sale somewhere.
     - [x] `/removefavorite`
     - [x] `/myfavorites`
-    - [ ] Get notified when favorites are on sale
+    - [x] Get notified when favorites are on sale
 - [ ] `/forgetme` : Command to delete all stored information about a user (currency and favorites)
 - [ ] `/mydata` : Send the user all their stored information (currency and favorite games)
