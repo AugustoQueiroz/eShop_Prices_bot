@@ -38,7 +38,7 @@ class InteractionManager:
     def _build_prices_message(self, game_title: str, prices: [{str: str}]):
         message_body = f'<strong><u>Current prices around the world for <em>{game_title}</em>:</u></strong>'
         for row in prices:
-            message_body += f'\n<strong>{row["country"]} - </strong>\t\t{row["price"]["current_price"]}'
+            message_body += f'\n<strong>{row["country"]} - </strong> <s>{row["price"]["original_price"] if row["price"]["discount"] else ""}</s> {row["price"]["current_price"]}'
         
         return message_body
 
@@ -131,14 +131,14 @@ class InteractionManager:
             search_results = self.eShop_scraper.search(game_title)
             print(search_results)
             game_title = list(search_results.keys())[0]
-            try:
-                prices = self.bot.prices_cache[game_title]['prices']
-            except KeyError:
-                prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
-                self.bot.prices_cache[game_title] = {
-                    'prices': prices,
-                    'date_added': datetime.datetime.now()
-                }
+            # try:
+            #     prices = self.bot.prices_cache[game_title]['prices']
+            # except KeyError:
+            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
+                # self.bot.prices_cache[game_title] = {
+                #     'prices': prices,
+                #     'date_added': datetime.datetime.now()
+                # }
 
             self.bot.update_message(
                 self.chat_id,
@@ -212,9 +212,10 @@ class InteractionManager:
 
                 self.bot.send_message(
                     self.chat_id,
-                    f'<strong>{html.escape(favorite)} {prices[0]["meta"]} on eShop {prices[0]["country"]}.</strong>\n\n<a href=\'{self.eShop_scraper.base_url}{search_results[game_title]["uri"]}\'>Checkout worldwide pricing information.</a>',
+                    f'<strong>{html.escape(favorite)} {prices[0]["meta"]} on eShop {prices[0]["country"]}.</strong>',
                     parse_mode='HTML'
                     )
+                self.get_prices_from_query(game_title)
                 
                 self.bot.prices_cache[game_title]['informed_users'].append(self.chat_id)
     
@@ -228,14 +229,14 @@ class InteractionManager:
             )
         elif len(search_results.keys()) == 1:
             game_title = list(search_results.keys())[0]
-            try:
-                prices = self.bot.prices_cache[game_title]['prices']
-            except KeyError:
-                prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
-                self.bot.prices_cache[game_title] = {
-                    'prices': prices,
-                    'date_added': datetime.datetime.now()
-                }
+            # try:
+            #     prices = self.bot.prices_cache[game_title]['prices']
+            # except KeyError:
+            prices = self.eShop_scraper.get_prices_from_url(search_results[game_title]['uri'])
+                # self.bot.prices_cache[game_title] = {
+                #     'prices': prices,
+                #     'date_added': datetime.datetime.now()
+                # }
             
             self.bot.send_message(
                 self.chat_id,
@@ -460,7 +461,7 @@ class TelegramBot:
             del self.prices_cache[cached_game]
 
     def run(self):
-        schedule.every(12).hours.do(self.check_promos)
+        schedule.every(12).seconds.do(self.check_promos)
         schedule.every(12).hours.do(self.cache_maintenance)
         try:
             while True:
