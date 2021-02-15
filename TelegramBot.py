@@ -461,7 +461,7 @@ class TelegramBot:
             del self.prices_cache[cached_game]
 
     def run(self):
-        schedule.every(12).seconds.do(self.check_promos)
+        schedule.every(12).hours.do(self.check_promos)
         schedule.every(12).hours.do(self.cache_maintenance)
         try:
             while True:
